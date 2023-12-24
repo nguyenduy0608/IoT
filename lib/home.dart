@@ -79,7 +79,7 @@ class _NavRailExampleState extends State<NavRailExample> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Do chat luong nuoc'),
+        title: const Text('Giám sát chất lượng nước'),
       ),
       body: Row(
         children: <Widget>[

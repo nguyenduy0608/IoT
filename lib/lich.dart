@@ -15,19 +15,13 @@ class _DateState extends State<Date> {
   List<double> _selectedData = [];
 
   List<_SalesData> temperatureData = [
-    _SalesData('Jan', 35),
-    _SalesData('Feb', 28),
-    _SalesData('Mar', 60),
-    _SalesData('Apr', 32),
-    _SalesData('May', 40),
+
   ];
   List<_SalesData> ecData = [
-    _SalesData('Jan', 35),
-    _SalesData('Feb', 28),
-    _SalesData('Mar', 60),
-    _SalesData('Apr', 32),
-    _SalesData('May', 40),
+
   ];
+  String ecStatusMessage = '';
+
 
   @override
   void initState() {
@@ -38,14 +32,13 @@ class _DateState extends State<Date> {
 
   // Hàm để đọc dữ liệu từ API Thingspeak
   Future<void> fetchData() async {
-    final url =
-        'https://api.thingspeak.com/channels/2352913/feeds.json?api_key=6LZCSH1BRII14KP4&results=10';
-
+    const url =
+        'https://api.thingspeak.com/channels/2352913/feeds.json?api_key=6LZCSH1BRII14KP4&results=15';
+    int safeCount = 0;
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> decodedData = json.decode(response.body);
-
       // Xử lý dữ liệu từ API để tạo danh sách nhiệt độ và EC
       List<_SalesData> temperatureList = [];
       List<_SalesData> ecList = [];
@@ -54,53 +47,64 @@ class _DateState extends State<Date> {
         final DateTime dateTime = DateTime.parse(entry['created_at']);
         final double temperature = double.parse(entry['field1']);
         final double ec = double.parse(entry['field2']);
-
-        temperatureList.add(_SalesData('${dateTime.day}/${dateTime.month}', temperature));
-        ecList.add(_SalesData('${dateTime.day}/${dateTime.month}', ec));
+        if (ec >= 0 && ec <= 1.5) {
+          safeCount++;
+        }
+        temperatureList.add(_SalesData('${dateTime.minute}:${dateTime.second}', temperature));
+        ecList.add(_SalesData('${dateTime.minute}:${dateTime.second}', ec));
+      }
+      if (safeCount > (decodedData['feeds'].length / 2)) {
+        ecStatusMessage = 'Chỉ số dẫn điện của bạn đang ở mức an toàn';
+      } else {
+        ecStatusMessage = 'Chỉ số dẫn điện của bạn đang ở mức nguy hiểm, cần làm các biện pháp cải thiện ngay';
       }
 
+      // Hiển thị thông báo
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ecStatusMessage),
+        ),
+      );
       setState(() {
-        // temperatureData = temperatureList;
-        // ecData = ecList;
+        temperatureData = temperatureList;
+
+        ecData = ecList;
 
         // Mặc định hiển thị dữ liệu của ngày cuối cùng
         _selectedDay = DateTime.parse(decodedData['feeds'].last['created_at']);
         // _selectedData = temperatureList.last.sales.toString() ?? [];
-        
+
       });
     } else {
       throw Exception('Failed to load data');
     }
-  }
 
+  }
+  void handleRefresh() {
+    // Gọi lại hàm fetchData khi cần làm mới dữ liệu
+    fetchData();
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lịch và Biểu Đồ'),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Biểu Đồ'),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: handleRefresh,
+            ),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
-        child: Container(
+        child: SizedBox(
           height: 1100,
           child: Column(
             children: [
               // Lịch
-              TableCalendar(
-                
-                onDaySelected: (DateTime selectedDay, DateTime focusedDay) {
-                  setState(() {
-                    _selectedDay = selectedDay;
-                    // _selectedData = temperatureData
-                    //     .firstWhere((element) => element.year == '${selectedDay.day}/${selectedDay.month}')
-                    //     .sales
-                    //     .toString() ??
-                    //     [];
-                  });
-                },
-                focusedDay: DateTime.now(),
-                firstDay: DateTime(2023, 1, 1),
-                lastDay: DateTime(2023, 12, 31),
-              ),
 
               // Biểu đồ nhiệt độ
               if (_selectedDay != null)
@@ -108,6 +112,9 @@ class _DateState extends State<Date> {
                   child: Expanded(
                     child: Column(
                       children: [
+                        const SizedBox(
+                          height: 20,
+                        ),
                         Text('Biểu Đồ cho ngày ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}'),
 
                         // Biểu đồ nhiệt độ
